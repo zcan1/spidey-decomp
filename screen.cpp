@@ -1,5 +1,11 @@
 #include "screen.h"
 
+// Screen-space effects here (target arrows, circular fades) presume the PC
+// renderer: pixel dimensions hard-code the 640px width used by DirectX
+// back buffers, and screen_DrawCircularFade is expected to emit DirectX
+// primitives. Portable targets need alternate draw helpers while preserving
+// fade timing semantics.
+
 
 EXPORT bool gScreenTarget;
 

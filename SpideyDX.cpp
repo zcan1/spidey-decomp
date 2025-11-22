@@ -1,3 +1,8 @@
+// DirectX/Win32 glue: this file owns the PC window, resolution settings,
+// DirectInput pad bridge, and MMX/3D accelerator probes. GBA porting will
+// require replacing HWND handling, message pump logic, timer hooks, and
+// device capability checks with handheld-friendly stubs while keeping the
+// game loop semantics consistent.
 #include "SpideyDX.h"
 #include "main.h"
 #include "PCTimer.h"

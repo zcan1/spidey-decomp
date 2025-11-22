@@ -1,3 +1,9 @@
+// PC rendering path: relies on DirectX initialization (DXINIT), DirectSound
+// mix callbacks, and the DXPOLY pipeline for scene submission. Textures are
+// loaded through PC-only PCTex utilities, pad polling routes through PCInput,
+// and fog/z-layer math assumes the PC floating-point pipeline. Any GBA
+// renderer will need replacements for these DirectX dependencies while
+// preserving the higher-level scene management calls.
 #include "PCGfx.h"
 #include "PCTex.h"
 #include "DXsound.h"

@@ -6,6 +6,12 @@
 // #define LOCK_VALIDATION
 
 
+// NOTE: This translation unit still orchestrates PC-specific startup.
+// Rendering, audio, and input are all dispatched through DirectX helpers
+// (DXINIT_ShutDown, DXERR_printf, DXsound, PCGfx, PCInput) and Win32 FMV
+// playback. Any port (e.g. to GBA) will need alternative entry points for
+// window creation, renderer initialization, controller polling, and CD-ROM
+// movie playback before SpideyMain runs.
 #include "main.h"
 #include "my_assert.h"
 #include "ob.h"
