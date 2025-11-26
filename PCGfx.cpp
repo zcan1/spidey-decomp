@@ -6,7 +6,6 @@
 // preserving the higher-level scene management calls.
 #include "PCGfx.h"
 #include "PCTex.h"
-#include "DXsound.h"
 #include "SpideyDX.h"
 #include "DXinit.h"
 #include "camera.h"
@@ -16,6 +15,8 @@
 #include "spool.h"
 #include "ps2pad.h"
 #include "PCInput.h"
+#include "algebra.h"
+#include "platform/gba/renderer.h"
 
 #include <cmath>
 #include <cstring>
@@ -36,8 +37,6 @@ EXPORT i32 gUseTextureRelated = 0x0FFFFFFFF;
 EXPORT DCGfx_BlendingMode gTextureBlendingMode;
 
 EXPORT i32 gPcGfxBlendModeRelated;
-EXPORT DXPOLY gDxPolys[15360];
-
 EXPORT f32 gRenderInitOne[3] = {  10.0f, 8048.0f, 276.0f };
 EXPORT f32 gRenderInitTwo[2] = { 8038.0f, 1.9624f };
 
@@ -95,19 +94,19 @@ i32 amHeapFree(i32)
 // missing fog stuff
 void PCGfx_BeginScene(u32,i32)
 {
-	if (!gSceneRelated)
-	{
-		if (gBFoggingRelated)
-		{
-			setupFog();
-		}
+        if (!gSceneRelated)
+        {
+                if (gBFoggingRelated)
+                {
+                        setupFog();
+                }
 
-		PCGfx_ProcessTexture(0, -1, DCGfx_BlendingMode_0);
-		DXPOLY_BeginScene();
-		gSceneRelated = 1;
-		gZLayerNearest = 0.0099999998;
-		gZLayerFurthest = -0.2;
-	}
+                PCGfx_ProcessTexture(0, -1, DCGfx_BlendingMode_0);
+                GBARenderer::Instance().BeginFrame();
+                gSceneRelated = 1;
+                gZLayerNearest = 0.0099999998;
+                gZLayerFurthest = -0.2;
+        }
 }
 
 // @MEDIUMTODO
@@ -357,148 +356,56 @@ void PCGfx_DrawQPoly3D(f32,f32,f32,f32,f32,u32,f32,f32,f32,f32,f32,u32,f32,f32,f
 // missing low graphics
 // might be wrong too
 void PCGfx_DrawQuad2D(
-		f32 a1,
-		f32 a2,
-		f32 a3,
-		f32 a4,
-		f32 a5,
-		f32 a6,
-		f32 a7,
-		f32 a8,
-		u32 color,
-		f32 a10,
-		bool)
+                f32 a1,
+                f32 a2,
+                f32 a3,
+                f32 a4,
+                f32 a5,
+                f32 a6,
+                f32 a7,
+                f32 a8,
+                u32 color,
+                f32 a10,
+                bool)
 {
-	gPcGfxDrawRelated &= 0xFFFFFFFB;
+        gPcGfxDrawRelated &= 0xFFFFFFFB;
 
-	if (a10 <= 6.0f)
-		gPcGfxSlotNumber = a10;
+        if (a10 <= 6.0f)
+                gPcGfxSlotNumber = a10;
 
-	f32 v13 = a10;
-	if (a10 < 0.0f)
-		v13 = v13 * a10 + gRenderInitOne[1];
-	else
-		v13 = v13 * a10 + gRenderInitOne[0];
+        f32 zOffset = a10;
+        if (a10 < 0.0f)
+                zOffset = zOffset * a10 + gRenderInitOne[1];
+        else
+                zOffset = zOffset * a10 + gRenderInitOne[0];
 
-	f32 v24 = v13;
-	print_if_false(v24 > 0.0f, "invalid zOffset!");
+        print_if_false(zOffset > 0.0f, "invalid zOffset!");
 
-	SDXPolyField *pDxPolyFields[4];
-	SDXPolyField dxPolyFields[4];
+        GBATileCommand cmd{};
+        cmd.color = color;
+        cmd.textureId = gUseTextureRelated;
+        cmd.affine = true;
 
-	dxPolyFields[0].field_18 = a6;
-	dxPolyFields[0].field_4 = a2;
-	dxPolyFields[1].field_4 = a2;
-	dxPolyFields[0].field_10 = color;
-	dxPolyFields[1].field_10 = color;
-	dxPolyFields[2].field_10 = color;
-	dxPolyFields[3].field_10 = color;
-	dxPolyFields[0].field_0 = a1;
-	dxPolyFields[0].field_14 = a5;
-	dxPolyFields[3].field_0 = a1;
-	dxPolyFields[3].field_14 = a5;
-	pDxPolyFields[2] = &dxPolyFields[2];
+        alg_real depth = Algebra_FixedFromFloat(zOffset);
 
-	f32 v27 = (v24 - gRenderInitOne[0]) / gRenderInitTwo[0];
-	dxPolyFields[0].field_8 = v27;
-	dxPolyFields[1].field_8 = v27;
-	dxPolyFields[2].field_8 = v27;
-	dxPolyFields[3].field_8 = v27;
+        f32 x1 = a1;
+        f32 y1 = a2;
+        f32 x2 = a1 + a3;
+        f32 y2 = a2 + a4;
 
-	pDxPolyFields[0] = dxPolyFields;
-	pDxPolyFields[3] = &dxPolyFields[3];
+        f32 u1 = a5;
+        f32 v1 = a6;
+        f32 u2 = a5 + a7;
+        f32 v2 = a6 + a8;
 
-	f32 v32 = gRenderInitOne[2] / v24;
-	dxPolyFields[0].field_C = v32;
-	dxPolyFields[1].field_C = v32;
-	dxPolyFields[2].field_C = v32;
-	dxPolyFields[3].field_C = v32;
+        cmd.vertices[0] = { static_cast<i32>(x1), static_cast<i32>(y1), depth, static_cast<i32>(u1), static_cast<i32>(v1) };
+        cmd.vertices[1] = { static_cast<i32>(x2), static_cast<i32>(y1), depth, static_cast<i32>(u2), static_cast<i32>(v1) };
+        cmd.vertices[2] = { static_cast<i32>(x2), static_cast<i32>(y2), depth, static_cast<i32>(u2), static_cast<i32>(v2) };
+        cmd.vertices[3] = { static_cast<i32>(x1), static_cast<i32>(y2), depth, static_cast<i32>(u1), static_cast<i32>(v2) };
 
-	f32 v28 = a1 + a3;
-	dxPolyFields[1].field_0 = v28;
-	dxPolyFields[2].field_0 = v28;
-	pDxPolyFields[1] = &dxPolyFields[1];
-
-	f32 v25 = a5 + a7;
-	dxPolyFields[1].field_14 = v25;
-	dxPolyFields[1].field_18 = a6;
-	dxPolyFields[2].field_14 = v25;
-
-	f32 v29 = a2 + a4;
-	dxPolyFields[2].field_4 = v29;
-	dxPolyFields[3].field_4 = v29;
-
-	f32 v30 = a6 + a8;
-	dxPolyFields[2].field_18 = v30;
-	dxPolyFields[3].field_18 = v30;
-
-	if (gEndSceneRelatedTwo >= 15360)
-	{
-		gEndSceneRelatedTwo++;
-		return;
-	}
-
-	f32 v26 = 0.0;
-	DXPOLY* v16 = &gDxPolys[gEndSceneRelatedTwo++];
-	i32 v31 = gPcGfxBlendModeRelated;
-
-	if (gLowGraphics)
-	{
-		// @FIXME: TODO
-	}
-	else
-	{
-		LPDIRECTDRAWSURFACE7 Direct3DTexture;
-		if (gUseTextureRelated < 0)
-			Direct3DTexture = 0;
-		else
-			Direct3DTexture = PCTex_GetDirect3DTexture(gUseTextureRelated);
-		v16->field_4 = Direct3DTexture;
-		v16->mBlendMode = gChosenBlendingMode;
-		v16->field_A = gProcessedTextureFlags;
-		v16->field_C = 4;
-		
-		SDXPolyField **v21 = pDxPolyFields;
-		SDXPolyField *v22 = v16->field_10;
-
-		for (i32 i = 0; i < 4; i++)
-		{
-			memcpy(&v22[i], v21[i], sizeof(SDXPolyField));
-			
-			i32 v23;
-			if (gProcessTextureRelated)
-				v23 = 128;
-			else
-				v23 = (v22[i].field_10 >> 24) & 0xFF;
-
-			v22[i].field_10 =
-				gPcGfxBrightnessValues[v22[i].field_10 & 0xFF] |
-				gPcGfxBrightnessValues[(v22[i].field_10 >> 8) & 0xFF] << 8 |
-				gPcGfxBrightnessValues[(v22[i].field_10 >> 16) & 0xFF] << 16 |
-				v23 << 24;
-
-			if (v22[i].field_8 < 0.0f)
-			{
-				v22[i].field_8 = 0.0f;
-			}
-			else if (v22[i].field_8 > 0.99989998f)
-			{
-				v22[i].field_8 = 0.99989998f;
-				v26 = v22[i].field_8;
-			}
-			else if (v26 < v22[i].field_8)
-			{
-				v26 = v22[i].field_8;
-			}
-		}
-		if ( gChosenBlendingMode )
-		{
-			v31 = 0;
-		}
-	}
-
-	DXPOLY_DrawPoly(v16, gPcGfxSlotNumber, v31, v26);
-	gPcGfxSlotNumber = -1;
+        GBARenderer::Instance().QueueTile(cmd);
+        gEndSceneRelatedTwo++;
+        gPcGfxSlotNumber = -1;
 }
 
 // @MEDIUMTODO
@@ -627,14 +534,14 @@ void PCGfx_DrawTexture2D(
 // @Note powerpc has fps counter here and fog level
 INLINE void PCGfx_EndScene(i32 a1)
 {
-	if (gSceneRelated)
-	{
-		DXPOLY_EndScene(a1 != 0);
-		PCGfx_ProcessTexture(0, -1, DCGfx_BlendingMode_0);
-		gEndSceneRelated = -1;
-		gSceneRelated = 0;
-		gEndSceneRelatedTwo = 0;
-	}
+        if (gSceneRelated)
+        {
+                GBARenderer::Instance().Flush(a1 != 0);
+                PCGfx_ProcessTexture(0, -1, DCGfx_BlendingMode_0);
+                gEndSceneRelated = -1;
+                gSceneRelated = 0;
+                gEndSceneRelatedTwo = 0;
+        }
 }
 
 // @Ok
@@ -679,10 +586,9 @@ void PCGfx_IncZLayerNearest(void)
 // @Ok
 void PCGfx_InitAtStart(void)
 {
-	DXPOLY_SetOutlineColor(0xFF00FF00);
-	DXPOLY_SetHUDOffset(7);
-	PCGfx_ProcessTexture(0, -1, DCGfx_BlendingMode_0);
-	PCGfx_SetBrightness(gBrightnessRelated);
+        GBARenderer::Instance().SetBlendMode(0);
+        PCGfx_ProcessTexture(0, -1, DCGfx_BlendingMode_0);
+        PCGfx_SetBrightness(gBrightnessRelated);
 }
 
 // @Ok
@@ -717,39 +623,39 @@ void PCGfx_ProcessTexture(
 		curBlendingMode = gProcessTextureRelated ? 1 : 5;
 	}
 
-	gChosenBlendingMode = curBlendingMode;
-	gNonRendderSettingE = (TextureFlags & 0x20) == 0 ? gIsRenderSettingE : 0;
+        gChosenBlendingMode = curBlendingMode;
+        gNonRendderSettingE = (TextureFlags & 0x20) == 0 ? gIsRenderSettingE : 0;
 
-	if (gLowGraphics)
-	{
-	}
-	else if (a2 >= 0)
-	{
-		IDirectDrawSurface7* Direct3DTexture = PCTex_GetDirect3DTexture(a2);
-		DXPOLY_SetTexture(Direct3DTexture);
-		gProcessedTextureFlags = 0;
+        if (gLowGraphics)
+        {
+        }
+        else if (a2 >= 0)
+        {
+                gProcessedTextureFlags = 0;
 
-		if (PCTex_TextureHasAlpha(a2))
-			gProcessedTextureFlags |= 8;
+                if (PCTex_TextureHasAlpha(a2))
+                        gProcessedTextureFlags |= 8;
 
-		i32 v9 = PCTex_GetTextureFlags(a2);
-		if ((v9 & 8) != 0)
-			gProcessedTextureFlags |= 0x10;
+                i32 v9 = PCTex_GetTextureFlags(a2);
+                if ((v9 & 8) != 0)
+                        gProcessedTextureFlags |= 0x10;
 
-		if ((v9 & 0x20) != 0)
-			gProcessedTextureFlags |= 1;
+                if ((v9 & 0x20) != 0)
+                        gProcessedTextureFlags |= 1;
 
-		if ((v9 & 2) == 0)
-			gProcessedTextureFlags |= 2;
+                if ((v9 & 2) == 0)
+                        gProcessedTextureFlags |= 2;
 
-		if ((v9 & 4) == 0)
-			gProcessedTextureFlags |= 4;
-	}
-	else
-	{
-		DXPOLY_SetTexture(0);
-		gProcessedTextureFlags = 0;
-	}
+                if ((v9 & 4) == 0)
+                        gProcessedTextureFlags |= 4;
+
+                GBARenderer::Instance().SetTexture(a2, gProcessedTextureFlags, gChosenBlendingMode);
+        }
+        else
+        {
+                GBARenderer::Instance().SetTexture(-1, 0, gChosenBlendingMode);
+                gProcessedTextureFlags = 0;
+        }
 }
 
 // @Ok
@@ -890,23 +796,23 @@ void PCGfx_SetRenderParameter(
 	{
 		switch ( a1 )
 		{
-			case DCGfx_RenderParameter_0:
-				print_if_false(a2 >= DCGfx_RenderSetting_0, "Invalid render setting.");
-				print_if_false(a2 <= DCGfx_RenderSetting_7, "Invalid render setting.");
-				DXPOLY_SetDepthCompare(gDepthCompareValues[a2]);
-				break;
-			case DCGfx_RenderParameter_1:
-				print_if_false(a2 >= DCGfx_RenderSetting_8, "Invalid render setting.");
-				print_if_false(a2 <= DCGfx_RenderSetting_9, "Invalid render setting.");
-				DXPOLY_SetDepthWriting(a2 == DCGfx_RenderSetting_8);
-				break;
+                        case DCGfx_RenderParameter_0:
+                                print_if_false(a2 >= DCGfx_RenderSetting_0, "Invalid render setting.");
+                                print_if_false(a2 <= DCGfx_RenderSetting_7, "Invalid render setting.");
+                                GBARenderer::Instance().SetDepthCompare(gDepthCompareValues[a2]);
+                                break;
+                        case DCGfx_RenderParameter_1:
+                                print_if_false(a2 >= DCGfx_RenderSetting_8, "Invalid render setting.");
+                                print_if_false(a2 <= DCGfx_RenderSetting_9, "Invalid render setting.");
+                                GBARenderer::Instance().SetDepthWrite(a2 == DCGfx_RenderSetting_8);
+                                break;
 			case DCGfx_RenderParameter_2:
 				break;
-			case DCGfx_RenderParameter_3:
-				print_if_false(a2 >= DCGfx_RenderSetting_a, "Invalid render setting.");
-				print_if_false(a2 <= DCGfx_RenderSetting_d, "Invalid render setting.");
-				DXPOLY_SetFilterMode(gFilterModeValues[a2-DCGfx_RenderSetting_a]);
-				break;
+                        case DCGfx_RenderParameter_3:
+                                print_if_false(a2 >= DCGfx_RenderSetting_a, "Invalid render setting.");
+                                print_if_false(a2 <= DCGfx_RenderSetting_d, "Invalid render setting.");
+                                GBARenderer::Instance().SetFilterMode(gFilterModeValues[a2-DCGfx_RenderSetting_a]);
+                                break;
 			case DCGfx_RenderParameter_4:
 				gIsRenderSettingE = a2 == DCGfx_RenderSetting_e;
 				if (!gIsRenderSettingE)
@@ -922,8 +828,8 @@ void PCGfx_SetRenderParameter(
 // @Ok
 INLINE void PCGfx_SetSkyColor(u32 a1)
 {
-	gPcGfxSkyColor = a1;
-	DXPOLY_SetBackgroundColor(a1 | 0xFF000000);
+        gPcGfxSkyColor = a1;
+        GBARenderer::Instance().SetBackgroundColor(a1 | 0xFF000000);
 }
 
 // @Ok

@@ -1,4 +1,6 @@
 #include "screen.h"
+#include "algebra.h"
+#include "platform/gba/renderer.h"
 
 // Screen-space effects here (target arrows, circular fades) presume the PC
 // renderer: pixel dimensions hard-code the 640px width used by DirectX
@@ -94,7 +96,21 @@ void Screen_UpdateFades(void)
 // @MEDIUMTODO
 INLINE void screen_DrawCircularFade(void)
 {
-    printf("screen_DrawCircularFade(void)");
+        GBASpriteCommand cmd{};
+        cmd.x = GBARenderer::Instance().ScreenWidth() / 2;
+        cmd.y = GBARenderer::Instance().ScreenHeight() / 2;
+        cmd.width = GBARenderer::Instance().ScreenWidth();
+        cmd.height = GBARenderer::Instance().ScreenHeight();
+        cmd.color = 0xFF000000;
+        cmd.affine = true;
+        cmd.angle = 0;
+
+        // Scale the affine sprite based on the fade accumulator. The result is
+        // treated as 8.8 fixed point to mirror the GBA affine sprite hardware.
+        cmd.scale = (gCircularFadeRelatedOne * 256) / 640;
+        cmd.depth = Algebra_FixedFromFloat(0.0f);
+
+        GBARenderer::Instance().QueueSprite(cmd);
 }
 
 // @Ok
