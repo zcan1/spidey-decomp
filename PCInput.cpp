@@ -1,8 +1,13 @@
 #include "PCInput.h"
+#include "non_win32.h"
+
+#if defined(PLATFORM_GBA)
+#include "platform/gba/input.h"
+#else
 #include "SpideyDX.h"
 #include "DXsound.h"
-#include "non_win32.h"
 #include "DXinit.h"
+#endif
 
 #include <cstring>
 
@@ -28,6 +33,26 @@ EXPORT i32 gOldMouseY;
 
 EXPORT i32 gControllerX;
 EXPORT i32 gControllerY;
+
+#if defined(PLATFORM_GBA)
+#define INPUT_GetControllerButtonState GBAINPUT_GetControllerButtonState
+#define INPUT_GetKeyState GBAINPUT_GetKeyState
+#define INPUT_GetMouseButtonState(...) 0
+#define INPUT_GetNumControllerButtons GBAINPUT_GetNumControllerButtons
+#define INPUT_PollController GBAINPUT_PollController
+#define INPUT_PollKeyboard GBAINPUT_PollKeyboard
+#define INPUT_SetKeyState GBAINPUT_SetKeyState
+#define INPUT_SetMouseButtonState(...) (void)0
+#else
+#define INPUT_GetControllerButtonState DXINPUT_GetControllerButtonState
+#define INPUT_GetKeyState DXINPUT_GetKeyState
+#define INPUT_GetMouseButtonState DXINPUT_GetMouseButtonState
+#define INPUT_GetNumControllerButtons DXINPUT_GetNumControllerButtons
+#define INPUT_PollController DXINPUT_PollController
+#define INPUT_PollKeyboard DXINPUT_PollKeyboard
+#define INPUT_SetKeyState DXINPUT_SetKeyState
+#define INPUT_SetMouseButtonState DXINPUT_SetMouseButtonState
+#endif
 
 EXPORT u8 gDefaultKeyboardMappings[0x70] =
 {
@@ -134,14 +159,14 @@ void PCINPUT_FreezeControllerAxes(void)
 // @Matching
 INLINE void PCINPUT_ClearKeyState(u8 a1)
 {
-	DXINPUT_SetKeyState(a1, 0);
+        INPUT_SetKeyState(a1, 0);
 }
 
 // @NotOk
 // re-check couldn't find it
 void PCINPUT_ClearMouseState(u8 a1)
 {
-	DXINPUT_SetMouseButtonState(a1, 0);
+        INPUT_SetMouseButtonState(a1, 0);
 }
 
 // @Ok
@@ -283,17 +308,22 @@ void PCINPUT_GetMouseHotspotPosition(i32* a1, i32* a2)
 // @Ok
 i32 PCINPUT_GetNumControllerButtons(void)
 {
-	return DXINPUT_GetNumControllerButtons();
+        return INPUT_GetNumControllerButtons();
 }
 
 // @Ok
 u8 PCINPUT_Initialize(void)
 {
-	DXINPUT_Initialize(gDirectInputRelated, gHwnd);
-	if (!DXINPUT_SetupKeyboard((gRenderTest & 1) == 0, 1))
-	{
-		DXERR_printf("A keyboard device could not be set up.\n");
-		return 0;
+#if defined(PLATFORM_GBA)
+        GBAINPUT_Initialize();
+        gMouseStatus = 0;
+        return 1;
+#else
+        DXINPUT_Initialize(gDirectInputRelated, gHwnd);
+        if (!DXINPUT_SetupKeyboard((gRenderTest & 1) == 0, 1))
+        {
+                DXERR_printf("A keyboard device could not be set up.\n");
+                return 0;
 	}
 
 	if ((gRenderTest & 0x10) == 0)
@@ -307,47 +337,48 @@ u8 PCINPUT_Initialize(void)
 		gMouseStatus = 1;
 	}
 
-	if (!DXINPUT_SetupController())
-		DXERR_printf("A game controller device could not be set up.\n");
+        if (!DXINPUT_SetupController())
+                DXERR_printf("A game controller device could not be set up.\n");
 
-	return 1;
+        return 1;
+#endif
 }
 
 // @Ok
 // @Matching
 i32 PCINPUT_IsControllerButtonPressed(u8 a1, i32 a2)
 {
-	if (a2)
-		return DXINPUT_GetControllerButtonState(a1) == 255;
-	else
-		return DXINPUT_GetControllerButtonState(a1) & 0x7F;
+        if (a2)
+                return INPUT_GetControllerButtonState(a1) == 255;
+        else
+                return INPUT_GetControllerButtonState(a1) & 0x7F;
 }
 
 // @Ok
 // @Matching
 INLINE i32 PCINPUT_IsKeyPressed(u8 a1, i32 a2)
 {
-	if (a2)
-		return DXINPUT_GetKeyState(a1) == 255;
-	else
-		return DXINPUT_GetKeyState(a1) & 0x7F;
+        if (a2)
+                return INPUT_GetKeyState(a1) == 255;
+        else
+                return INPUT_GetKeyState(a1) & 0x7F;
 }
 
 // @Ok
 // @Matching
 i32 PCINPUT_IsMouseButtonPressed(u8 a1, i32 a2)
 {
-	if ( a2 )
-		return DXINPUT_GetMouseButtonState(a1) == -1;
-	else
-		return DXINPUT_GetMouseButtonState(a1) & 0x7F;
+        if ( a2 )
+                return INPUT_GetMouseButtonState(a1) == -1;
+        else
+                return INPUT_GetMouseButtonState(a1) & 0x7F;
 }
 
 // @Ok
 // @Matching
 i32 PCINPUT_IsMouseButtonReleased(u8 button)
 {
-	return DXINPUT_GetMouseButtonState(button) == 0x80;
+        return INPUT_GetMouseButtonState(button) == 0x80;
 }
 
 // @Ok
@@ -367,8 +398,8 @@ i32 PCINPUT_IsMouseOver(
 // @Ok
 INLINE u8 PCINPUT_PollController(void)
 {
-	if (!DXINPUT_PollController(&gControllerX, &gControllerY, &gControllerAxesRelatedTwo))
-		return 0;
+        if (!INPUT_PollController(&gControllerX, &gControllerY, &gControllerAxesRelatedTwo))
+                return 0;
 
 	if (gControllerAxesRelatedOne &&
 			gControllerX < 250 &&
@@ -377,17 +408,17 @@ INLINE u8 PCINPUT_PollController(void)
 			gControllerY > -250)
 	{
 		gControllerAxesRelatedOne = 0;
-	}
+        }
 
-	return 1;
+        return 1;
 }
 
 // @Ok
 // @Matching
 INLINE u8 PCINPUT_PollKeyboard(void)
 {
-	if (DXINPUT_PollKeyboard() < 0)
-		return 0;
+        if (INPUT_PollKeyboard() < 0)
+                return 0;
 
 	checkDebugKeypress();
 	return 1;
@@ -478,36 +509,53 @@ INLINE void PCINPUT_SetMousePosition(
 // @Matching
 u8 PCINPUT_SetupForceFeedbackSineEffect(i32 a1, f32 a2)
 {
-	if (gRenderTest & 0x20)
-		return 1;
+        if (gRenderTest & 0x20)
+                return 1;
 
-	return DXINPUT_SetupForceFeedbackSineEffect(a1, a2) != 0;
+#if defined(PLATFORM_GBA)
+        return 1;
+#else
+        return DXINPUT_SetupForceFeedbackSineEffect(a1, a2) != 0;
+#endif
 }
 
 // @Ok
 void PCINPUT_Shutdown(void)
 {
-	DXINPUT_Release();
+        INPUT_SetKeyState(0, 0);
+#if defined(PLATFORM_GBA)
+        GBAINPUT_Release();
+#else
+        DXINPUT_Release();
+#endif
 }
 
 // @Ok
 // @Matching
 u8 PCINPUT_StartForceFeedbackEffect(void)
 {
-	if (gRenderTest & 0x20)
-		return 1;
+        if (gRenderTest & 0x20)
+                return 1;
 
-	return DXINPUT_StartForceFeedbackEffect() != 0;
+#if defined(PLATFORM_GBA)
+        return 1;
+#else
+        return DXINPUT_StartForceFeedbackEffect() != 0;
+#endif
 }
 
 // @Ok
 // @Matching
 u8 PCINPUT_StopForceFeedbackEffect(void)
 {
-	if (gRenderTest & 0x20)
-		return 1;
+        if (gRenderTest & 0x20)
+                return 1;
 
-	return DXINPUT_StopForceFeedbackEffect() != 0;
+#if defined(PLATFORM_GBA)
+        return 1;
+#else
+        return DXINPUT_StopForceFeedbackEffect() != 0;
+#endif
 }
 
 EXPORT f32 ONE_FLOAT = 1.0f;
@@ -515,10 +563,13 @@ EXPORT f32 ONE_FLOAT = 1.0f;
 // @Ok
 u8 PCINPUT_UpdateMouse(void)
 {
-	i32 v5 = 0;
-	i32 v6 = 0;
-	if ( !gMouseStatus || !DXINPUT_PollMouse(&v5, &v6) )
-		return 0;
+        i32 v5 = 0;
+        i32 v6 = 0;
+#if defined(PLATFORM_GBA)
+        return 0;
+#else
+        if ( !gMouseStatus || !DXINPUT_PollMouse(&v5, &v6) )
+                return 0;
 
 	gOldMouseX = gMouseX;
 	gOldMouseY = gMouseY;
@@ -528,7 +579,8 @@ u8 PCINPUT_UpdateMouse(void)
 
 	PCINPUT_SetMousePosition(gMouseX, gMouseY);
 
-	return gOldMouseX != gMouseX || gOldMouseY != gMouseY;
+        return gOldMouseX != gMouseX || gOldMouseY != gMouseY;
+#endif
 }
 
 // @Ok
